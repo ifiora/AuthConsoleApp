@@ -9,6 +9,11 @@ import java.nio.file.Path;
 
 public class App {
   private static final String CHALLENGE_FILE = "challenge.txt";
+  // private static final String LOGIN_URL = "http://localhost:4200/jewel-login/";
+  // private static final String AUTHORIZE_ENDPOINT = "http://localhost:3000/v1/auth/jewelAuthorize";
+
+  private static final String LOGIN_URL = "https://eeg-portal.soplo.com.ar/jewel-login/";
+  private static final String AUTHORIZE_ENDPOINT = "https://eeg-portal.soplo.com.ar/v1/auth/jewelAuthorize";
 
   public static void main(String[] args) {
 
@@ -55,7 +60,7 @@ public class App {
       System.out.println("Opening browser...");
 
       // Abrir navegador a Angular app
-      String loginUrl = "http://localhost:4200/jewel-login/" + URLEncoder.encode(challenge, "UTF-8");
+      String loginUrl = LOGIN_URL + URLEncoder.encode(challenge, "UTF-8");
       if (Desktop.isDesktopSupported()) {
         Desktop.getDesktop().browse(new URI(loginUrl));
       } else {
@@ -81,7 +86,7 @@ public class App {
     String json = String.format("{\"code\":\"%s\",\"verifier\":\"%s\"}", code, verifier);
 
     // Enviar POST a backend
-    URL url = new URL("http://localhost:3000/v1/auth/jewelAuthorize");
+    URL url = new URL(AUTHORIZE_ENDPOINT);
     HttpURLConnection con = (HttpURLConnection) url.openConnection();
     con.setRequestMethod("POST");
     con.setDoOutput(true);
