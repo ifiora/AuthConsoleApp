@@ -26,7 +26,7 @@ public class App {
       // Con argumentos → buscar code=... y completar login
       for (String arg : args) {
         if (arg.startsWith("jewel://code=")) {
-          String code = arg.substring("jewel://code=".length());
+          String code = args[0].replace("jewel://code=", "").replace("/", "");
           try {
             completeLoginFlow(code);
           } catch (Exception e) {
