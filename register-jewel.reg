@@ -1,0 +1,12 @@
+Windows Registry Editor Version 5.00
+
+[HKEY_CLASSES_ROOT\jewel]
+@="URL:Jewel Auth Protocol"
+"URL Protocol"=""
+
+[HKEY_CLASSES_ROOT\jewel\shell]
+
+[HKEY_CLASSES_ROOT\jewel\shell\open]
+
+[HKEY_CLASSES_ROOT\jewel\shell\open\command]
+@="\"C:\\Program Files\\Eclipse Adoptium\\jdk-21.0.8.9-hotspot\\bin\\javaw.exe\" -jar \"D:\\desarrollos\\AuthConsoleApp\\target\\AuthConsoleApp-1.0-SNAPSHOT.jar\" \"%1\""
