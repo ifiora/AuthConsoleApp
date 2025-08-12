@@ -9,4 +9,4 @@ Windows Registry Editor Version 5.00
 [HKEY_CLASSES_ROOT\jewel\shell\open]
 
 [HKEY_CLASSES_ROOT\jewel\shell\open\command]
-@="\"C:\\Program Files\\Eclipse Adoptium\\jdk-21.0.8.9-hotspot\\bin\\javaw.exe\" -jar \"D:\\desarrollos\\AuthConsoleApp\\target\\AuthConsoleApp-1.0-SNAPSHOT.jar\" \"%1\""
+@="\"C:\\Users\\Facu\\.jdks\\openjdk-24.0.2\\bin\\java.exe\" -jar \"C:\\Users\\Facu\\Desktop\\AuthConsoleApp-main 2\\out\\artifacts\\AuthConsoleApp_jar\\AuthConsoleApp.jar\" \"%1\""

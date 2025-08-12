@@ -1,66 +1,85 @@
 package com.example.authapp;
 
+import HttpConnection.AsyncHttpClient;
+import HttpConnection.HttpClient;
+import HttpConnection.HttpResponseHandler;
+import HttpConnection.RequestParams;
+
 import java.io.*;
+import java.util.List;
+import java.util.Map;
 import java.net.*;
 import java.awt.Desktop;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import static spark.Spark.*;
+import org.eclipse.jetty.util.log.Log;
+import org.eclipse.jetty.util.log.StdErrLog;
 
 public class App {
-  private static final String CHALLENGE_FILE = "challenge.txt";
-  // private static final String LOGIN_URL = "http://localhost:4200/jewel-login/";
-  // private static final String AUTHORIZE_ENDPOINT = "http://localhost:3000/v1/auth/jewelAuthorize";
+  private static final String CHALLENGE_FILE = "out\\artifacts\\AuthConsoleApp_jar\\challenge.txt";
 
-  private static final String LOGIN_URL = "https://eeg-portal.soplo.com.ar/jewel-login/";
-  private static final String AUTHORIZE_ENDPOINT = "https://eeg-portal.soplo.com.ar/v1/auth/jewelAuthorize";
+  private static final String URL_LOGIN = "https://eeg-portal.soplo.com.ar/jewel-login/";
+  private static final String URL_AUTHORIZATION = "https://eeg-portal.soplo.com.ar/v1/auth/jewelAuthorize";
 
   public static void main(String[] args) {
-
-    System.out.println("== Auth Desktop App ==");
-
-    System.out.println("Args recibidos:");
-    for (String arg : args) {
-      System.out.println(arg);
-    }
+    // We make the SparkJava logger less verbose...
+    Log.setLog(new StdErrLog());
+    Log.getRootLogger().setDebugEnabled(false);
 
     if (args.length == 0) {
-      // Sin argumentos → iniciar login
-      startLoginFlow();
-    } else {
-      // Con argumentos → buscar code=... y completar login
-      for (String arg : args) {
-        if (arg.startsWith("jewel://code=")) {
-          String code = args[0].replace("jewel://code=", "").replace("/", "");
-          try {
-            completeLoginFlow(code);
-          } catch (Exception e) {
-            System.err.println("Error while completing login: " + e.getMessage());
-          }
-        }
-      }
-    }
+      System.out.println("No arguments. Initializing HTTP server and login flow...");
 
-    System.out.println("Presioná Enter para cerrar...");
-    try {
-      System.in.read();
-    } catch (IOException e) {
-      e.printStackTrace();
+      startHttpServer();
+      launchLoginFlow();
+    } else {
+      System.out.println("Received arguments:");
+      for (String arg : args) {
+        System.out.println("Argument: " + arg);
+      }
+
+      String code = getCodeFromArgs(args[0]);
+      completeLoginFlow(code);
     }
   }
 
-  private static void startLoginFlow() {
+  private static void startHttpServer() {
+    // We use SparkJava (not to be confused with Apache Spark) to set up a local server
+    port(3000);
+    // Not to be confused with the doPostRequest() custom method we have, which uses the other library
+    post("/v1/auth/authorizeJewel", (req, res) -> {
+      String code = req.queryParams("code");
+
+      System.out.println("Code received from website: " + code);
+
+      // Simulates relaunching the program with the code as an argument
+      try {
+        String jarPath = new java.io.File(App.class.getProtectionDomain().getCodeSource().getLocation().toURI()).getPath();
+        new ProcessBuilder("java", "-jar", jarPath, "jewel://code=" + code).start();
+      } catch (Exception e) {
+        e.printStackTrace();
+      }
+
+      return "OK";
+    });
+
+    System.out.println("HTTP server listening on http://localhost:3000");
+  }
+
+  private static void launchLoginFlow() {
     try {
       String verifier = PkceUtil.generateCodeVerifier();
-      String challenge = PkceUtil.generateCodeChallenge(verifier);
+      System.out.println("Verifier: " + verifier);
+      String challengeString = PkceUtil.generateCodeChallenge(verifier);
 
-      // Guardar el verifier en un archivo temporal
-      Files.writeString(Path.of(CHALLENGE_FILE), verifier);
-      System.out.println("Generated challenge: " + challenge);
+      // Saves the verifier on a temporary file
+      Path challengeFilePath = Path.of(CHALLENGE_FILE);
+      Files.writeString(challengeFilePath, challengeString);
+      System.out.println("Generated challenge: " + challengeString);
+
       System.out.println("Opening browser...");
-
-      // Abrir navegador a Angular app
-      String loginUrl = LOGIN_URL + URLEncoder.encode(challenge, "UTF-8");
+      String loginUrl = URL_LOGIN + URLEncoder.encode(challengeString, StandardCharsets.UTF_8);
       if (Desktop.isDesktopSupported()) {
         Desktop.getDesktop().browse(new URI(loginUrl));
       } else {
@@ -68,52 +87,76 @@ public class App {
       }
 
     } catch (Exception e) {
-      System.err.println("Error during login flow: " + e.getMessage());
+      System.err.println("Error when launching login flow: " + e.getMessage());
     }
   }
 
-  private static void completeLoginFlow(String code) throws Exception {
-    // Leer el verifier previamente guardado
+  private static void completeLoginFlow(String code) {
+    try {
+      File jarFile = new File(App.class.getProtectionDomain().getCodeSource().getLocation().toURI());
+      File jarPath = jarFile.getParentFile();
 
-    String jarPath = new File(App.class.getProtectionDomain().getCodeSource().getLocation().toURI()).getParent();
-    File file = new File(jarPath, CHALLENGE_FILE);
+      // We now read the challenge from the file
+      File challengeFile = new File(jarPath, "challenge.txt");
+      byte[] bytes = Files.readAllBytes(challengeFile.toPath());
+      String challengeString = new String(bytes, StandardCharsets.UTF_8);
 
-    String verifier = new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8);
+      System.out.println("Sending code and challenge to the website:");
+      System.out.println("Code: " + code);
+      System.out.println("Challenge: " + challengeString);
 
-    System.out.println("Sending POST to backend...");
-
-    // Crear cuerpo JSON
-    String json = String.format("{\"code\":\"%s\",\"verifier\":\"%s\"}", code, verifier);
-
-    // Enviar POST a backend
-    URL url = new URL(AUTHORIZE_ENDPOINT);
-    HttpURLConnection con = (HttpURLConnection) url.openConnection();
-    con.setRequestMethod("POST");
-    con.setDoOutput(true);
-    con.setRequestProperty("Content-Type", "application/json");
-
-    try (OutputStream os = con.getOutputStream()) {
-      byte[] input = json.getBytes("utf-8");
-      os.write(input, 0, input.length);
+      doPostRequest(challengeString);
+    } catch (Exception e) {
+      System.err.println("Error while completing login flow: " + e.getMessage());
     }
+  }
 
-    int status = con.getResponseCode();
-    System.out.println("Response status: " + status);
+  private static void doPostRequest(String challenge) {
+    RequestParams params = new RequestParams();
+    HttpClient httpClient = new AsyncHttpClient();
+    HttpResponseHandler postHandler = new HttpResponseHandler () {
+      @Override
+      public void onSuccess(int statusCode, Map<String, List<String>> headers, byte[] content) {
+        System.out.println("POST SUCCESS");
 
-    if (status == 200) {
-      try (BufferedReader br = new BufferedReader(
-          new InputStreamReader(con.getInputStream(), "utf-8"))) {
-        StringBuilder response = new StringBuilder();
-        String line;
-        while ((line = br.readLine()) != null) {
-          response.append(line.trim());
-        }
-        System.out.println("Response body: " + response);
+        String contentString = new String(content, StandardCharsets.UTF_8);
+        System.out.println("Content = " + contentString);
+
+        System.out.println("FINISHED!! You can close the program now.");
       }
-    } else {
-      System.out.println("Failed to authorize. HTTP status: " + status);
-    }
 
-    con.disconnect();
+      @Override
+      public void onFailure(int statusCode, Map<String, List<String>> headers, byte[] content) {
+        System.out.println("POST FAILURE. CODE: " + statusCode);
+
+        String contentString = new String(content, StandardCharsets.UTF_8);
+        System.out.println("Content = " + contentString);
+
+        System.out.println("FINISHED!! You can close the program now.");
+      }
+
+      @Override
+      public void onFailure(Throwable throwable) {
+        System.out.println("POST - COULD NOT CONNECT TO THE SERVER");
+
+        System.out.println("FINISHED!! You can close the program now.");
+      }
+    };
+
+    params.put("challenge", challenge);
+
+    httpClient.post(URL_AUTHORIZATION,
+                    params,
+                    postHandler);
+  }
+
+  private static String getCodeFromArgs(String rawArg) {
+    // For example: jewel://code=abc123/ → abc123
+    int idx = rawArg.indexOf("code=");
+    if (idx != -1) {
+      String temp = rawArg.substring(idx + 5);
+      return temp.replace("/", "");
+    }
+    return "";
   }
 }
